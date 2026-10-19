@@ -1,0 +1,12 @@
+[project]
+name = "comfyui-clown-context"
+description = "Clown Context: continue a MiniMax H3 shot from the previous shot's real latents, block-aligned and masked, with no flash at the join."
+version = "1.0.0"
+license = { file = "LICENSE" }
+
+[project.urls]
+Repository = "https://github.com/roychodraws87/comfyui-clown-context"
+
+[tool.comfy]
+PublisherId = "roychodraws87"
+DisplayName = "Clown Context"
