@@ -1,6 +1,6 @@
 # Clown Context
 
-A ComfyUI node for continuing a **MiniMax H3** shot from the end of the previous one. It's a replacement for Motion Context's pinned frames.
+A ComfyUI node for continuing a **MiniMax H3** shot from the end of the previous one. It's an alternative for Motion Context's pinned frames.
 
 Clown Context takes the previous shot's **real saved latents** and holds them at the start of the new shot. It places them in the same block positions they were made in and masks them so the sampler keeps them as they are. The overlap comes out identical to the end of the previous shot, so joins are exact and the overlap doesn't flash.
 
