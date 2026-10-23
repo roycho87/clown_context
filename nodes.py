@@ -81,8 +81,9 @@ class H3ClownContext:
     Holds the PREVIOUS shot's last `head_frames` frames at the START of this shot,
     in matching block positions, with noise mask 0 so the sampler keeps them as the
     real originals. 39 -> this shot's frames 0-38 = previous shot's frames 204-242.
-    drop_17_frames (off by default) holds one block less at the far end:
-    39 -> this shot's frames 0-21 = previous shot's frames 204-225.
+    drop_17_frames (on by default) holds one block less at the START of this shot:
+    39 -> this shot's frames 0-16 are generated freely and frames 17-38 = previous
+    shot's frames 221-242, so the held frames still end on the previous shot's last frame.
     Connect shot_number and set first_shot to your run's first shot number: that shot
     ignores any previous latent, so an old clip left in the folder can't be picked up.
     """
@@ -103,8 +104,8 @@ class H3ClownContext:
                 "latent": ("LATENT", {"tooltip": "Starting AV latent that goes into the sampler."}),
                 "head_frames": ("INT", {"default": 39, "min": 0, "max": 4096,
                                         "tooltip": "Overlap in frames (use the audio overlap, e.g. 39). The whole overlap is held."}),
-                "drop_17_frames": ("BOOLEAN", {"default": False,
-                                               "tooltip": "Skip the 17 overlap frames furthest into this shot (one block): 39 -> holds the previous shot's frames 204-225 in this shot's frames 0-21; frames 22-38 are generated freely."}),
+                "drop_17_frames": ("BOOLEAN", {"default": True,
+                                               "tooltip": "Skip this shot's first 17 frames (one block): 39 -> holds the previous shot's frames 221-242 in this shot's frames 17-38; frames 0-16 are generated freely."}),
                 "first_shot": ("INT", {"default": 1, "min": -9999, "max": 99999,
                                        "tooltip": "Number of the first shot of your run. On that shot (or earlier) the previous latent is ignored."}),
             },
@@ -115,7 +116,7 @@ class H3ClownContext:
             },
         }
 
-    def anchor(self, latent, head_frames, drop_17_frames=False, first_shot=1, shot_number=None, previous_shot=None):
+    def anchor(self, latent, head_frames, drop_17_frames=True, first_shot=1, shot_number=None, previous_shot=None):
         who = "Clown Context"
         if shot_number is not None and int(shot_number) <= int(first_shot):
             print(f"[{who}] shot {shot_number} is the first shot (first_shot = {first_shot}) - previous latent ignored, latent passed through unchanged")
@@ -141,17 +142,19 @@ class H3ClownContext:
         F_all = min(_aligned_overlap(head_frames, Ls), Lt, Ls)
         if F_all != int(head_frames):
             print(f"[{who}] overlap {head_frames} doesn't start on a block boundary - using {F_all}")
-        # drop_17_frames drops the LAST block of the overlap (the 17 frames furthest into this
-        # shot); the start still lines up with the previous shot's frame (L - overlap).
+        # drop_17_frames drops the FIRST block of the overlap (this shot's frames 0-16); the held
+        # frames still end on the previous shot's last frame. Dropping a whole block keeps
+        # positions aligned.
         F = F_all - (BLOCK if drop_17_frames else 0)
         n = _latents_in(F_all) - (5 if drop_17_frames else 0)
         if F <= 0 or n <= 0:
             print(f"[{who}] nothing to hold (overlap {F_all}, drop_17_frames {drop_17_frames}) - latent passed through")
             return (latent,)
         if drop_17_frames:
-            print(f"[{who}] drop_17_frames on: holding the first {F} overlap frames, the last 17 are generated freely")
-        d0 = 0
-        s0 = 5 * ((Ls - F_all) // BLOCK)
+            print(f"[{who}] drop_17_frames on: this shot's first 17 frames are generated freely, holding the last {F} overlap frames")
+        skip = 5 if drop_17_frames else 0
+        d0 = skip
+        s0 = 5 * ((Ls - F_all) // BLOCK) + skip
         video = video.clone()
         video[:, :, d0:d0 + n] = src[:, :, s0:s0 + n].to(device=video.device, dtype=video.dtype)
         parts[vi] = video
@@ -179,8 +182,8 @@ class H3ClownContext:
             out["samples"] = parts[0]
             out["noise_mask"] = masks[0]
 
-        sf = _frames_of(s0)
-        print(f"[{who}] held latents {d0}..{d0 + n - 1} = frames 0..{F - 1} "
+        sf = _frames_of(s0); df = _frames_of(d0)
+        print(f"[{who}] held latents {d0}..{d0 + n - 1} = frames {df}..{df + F - 1} "
               f"<- previous shot's frames {sf}..{sf + F - 1}")
         return (out,)
 
