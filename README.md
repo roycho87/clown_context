@@ -4,7 +4,7 @@ A ComfyUI node for continuing a **MiniMax H3** shot from the end of the previous
 
 Clown Context takes the previous shot's **real saved latents** and holds them at the start of the new shot. It places them in the same block positions they were made in and masks them so the sampler keeps them as they are. The overlap comes out identical to the end of the previous shot, so joins are exact and the overlap doesn't flash.
 
-Companion node: **[Clown Anchoring](https://github.com/roychodraws87/comfyui-clown-anchoring)** does the same thing at the *end* of a shot, holding the next shot's opening frames. Used together, an in-between shot can be pinned at both ends.
+Companion node: **[Clown Anchoring](https://github.com/roychodraws87/h3_clown_anchoring)** does the same thing at the *end* of a shot, holding the next shot's opening frames. Used together, an in-between shot can be pinned at both ends.
 
 ## Why
 
