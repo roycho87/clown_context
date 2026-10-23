@@ -18,7 +18,7 @@ Clown Context copies only whole blocks, each into the position it came from. Wit
 |---|---|
 | `latent` | The starting AV latent going into the sampler. |
 | `head_frames` | Overlap in frames. With 39 and 243-frame clips, this shot's frames 0–38 are held as the previous shot's frames 204–242. Use the same overlap as your audio splitter. |
-| `drop_17_frames` | **On by default.** Holds one block less, at the start of this shot. With 39, frames 0–16 are generated freely, and frames 17–38 are held as the previous shot's frames 221–242, so the held frames still end on the previous shot's last frame. |
+| `drop_frames` | **17 by default.** Frames at the start of this shot to generate freely, in steps of 17 (0, 17, 34 …). The held frames still end on the previous shot's last frame. With 39: 17 holds the previous shot's frames 221–242 in frames 17–38; 34 holds 238–242 in frames 34–38; 0 holds the whole overlap. |
 | `first_shot` | The first shot number of your run (default 1). That shot ignores any previous latent, so an old file left in the folder can't be picked up. |
 | `shot_number` (optional) | Connect your shot number here to enable the `first_shot` check. |
 | `previous_shot` (optional) | The previous shot's saved latent, for example from **H3 Motion Context Load Latent**. Accepts the plain list or a packed latent. If it's empty, the latent passes through unchanged. |

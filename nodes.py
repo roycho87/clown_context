@@ -71,6 +71,13 @@ def _aligned_overlap(overlap, clip_frames):
     return max(0, min(f, clip_frames))
 
 
+def _drop_blocks(drop_frames):
+    """drop_frames -> whole 17-frame blocks to drop. Old workflows saved a True/False switch here."""
+    if isinstance(drop_frames, bool):
+        return 1 if drop_frames else 0
+    return max(0, int(drop_frames)) // BLOCK
+
+
 def _video_first(parts):
     return sorted(parts, key=lambda t: t.ndim, reverse=True)
 
@@ -81,9 +88,9 @@ class H3ClownContext:
     Holds the PREVIOUS shot's last `head_frames` frames at the START of this shot,
     in matching block positions, with noise mask 0 so the sampler keeps them as the
     real originals. 39 -> this shot's frames 0-38 = previous shot's frames 204-242.
-    drop_17_frames (on by default) holds one block less at the START of this shot:
-    39 -> this shot's frames 0-16 are generated freely and frames 17-38 = previous
-    shot's frames 221-242, so the held frames still end on the previous shot's last frame.
+    drop_frames (17 by default, steps of 17) generates that many frames at the START of
+    this shot freely: 39 with 17 -> this shot's frames 0-16 are free and frames 17-38 =
+    previous shot's frames 221-242, so the held frames still end on the previous shot's last frame.
     Connect shot_number and set first_shot to your run's first shot number: that shot
     ignores any previous latent, so an old clip left in the folder can't be picked up.
     """
@@ -104,8 +111,8 @@ class H3ClownContext:
                 "latent": ("LATENT", {"tooltip": "Starting AV latent that goes into the sampler."}),
                 "head_frames": ("INT", {"default": 39, "min": 0, "max": 4096,
                                         "tooltip": "Overlap in frames (use the audio overlap, e.g. 39). The whole overlap is held."}),
-                "drop_17_frames": ("BOOLEAN", {"default": True,
-                                               "tooltip": "Skip this shot's first 17 frames (one block): 39 -> holds the previous shot's frames 221-242 in this shot's frames 17-38; frames 0-16 are generated freely."}),
+                "drop_frames": ("INT", {"default": 17, "min": 0, "max": 4096, "step": 17,
+                                    "tooltip": "Frames at the START of this shot to generate freely, in whole 17-frame blocks (0, 17, 34 ...). The held frames still end on the previous shot's last frame: 39 with 17 -> previous 221-242 held in this shot's 17-38; 39 with 34 -> previous 238-242 held in 34-38. 0 holds the whole overlap."}),
                 "first_shot": ("INT", {"default": 1, "min": -9999, "max": 99999,
                                        "tooltip": "Number of the first shot of your run. On that shot (or earlier) the previous latent is ignored."}),
             },
@@ -116,7 +123,7 @@ class H3ClownContext:
             },
         }
 
-    def anchor(self, latent, head_frames, drop_17_frames=True, first_shot=1, shot_number=None, previous_shot=None):
+    def anchor(self, latent, head_frames, drop_frames=17, first_shot=1, shot_number=None, previous_shot=None):
         who = "Clown Context"
         if shot_number is not None and int(shot_number) <= int(first_shot):
             print(f"[{who}] shot {shot_number} is the first shot (first_shot = {first_shot}) - previous latent ignored, latent passed through unchanged")
@@ -142,19 +149,18 @@ class H3ClownContext:
         F_all = min(_aligned_overlap(head_frames, Ls), Lt, Ls)
         if F_all != int(head_frames):
             print(f"[{who}] overlap {head_frames} doesn't start on a block boundary - using {F_all}")
-        # drop_17_frames drops the FIRST block of the overlap (this shot's frames 0-16); the held
-        # frames still end on the previous shot's last frame. Dropping a whole block keeps
-        # positions aligned.
-        F = F_all - (BLOCK if drop_17_frames else 0)
-        n = _latents_in(F_all) - (5 if drop_17_frames else 0)
+        # drop_frames frees whole blocks at the START of this shot; the held frames still end on
+        # the previous shot's last frame. Whole blocks keep positions aligned.
+        k = _drop_blocks(drop_frames)
+        F = F_all - BLOCK * k
+        n = _latents_in(F_all) - 5 * k
         if F <= 0 or n <= 0:
-            print(f"[{who}] nothing to hold (overlap {F_all}, drop_17_frames {drop_17_frames}) - latent passed through")
+            print(f"[{who}] nothing to hold (overlap {F_all}, drop_frames {drop_frames}) - latent passed through")
             return (latent,)
-        if drop_17_frames:
-            print(f"[{who}] drop_17_frames on: this shot's first 17 frames are generated freely, holding the last {F} overlap frames")
-        skip = 5 if drop_17_frames else 0
-        d0 = skip
-        s0 = 5 * ((Ls - F_all) // BLOCK) + skip
+        if k:
+            print(f"[{who}] drop_frames {BLOCK * k}: this shot's first {BLOCK * k} frames are generated freely, holding the last {F} overlap frames")
+        d0 = 5 * k
+        s0 = 5 * ((Ls - F_all) // BLOCK) + 5 * k
         video = video.clone()
         video[:, :, d0:d0 + n] = src[:, :, s0:s0 + n].to(device=video.device, dtype=video.dtype)
         parts[vi] = video
